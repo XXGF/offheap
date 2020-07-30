@@ -27,8 +27,8 @@ type HashTable struct {
 	MagicNumber   int     // distinguish between reading from empty file versus an on-disk HashTable.
 	Cells         uintptr `msg:"-"`
 	CellSz        uint64
-	ArraySize     uint64
-	Population    uint64
+	ArraySize     uint64   // 容量，即一共能装多少个cell
+	Population    uint64   // 有内容的cell的数量
 	ZeroUsed      bool
 	ZeroCell      Cell
 	OffheapHeader []byte     `msg:"-"`
@@ -272,15 +272,19 @@ func (t *HashTable) Insert(key uint64) (*Cell, bool) {
 	if key != 0 {
 
 		for {
-			h := integerHash(uint64(key)) % t.ArraySize
+			// ArraySize必须是2的N次幂的目的，是为了hash取余的时候可以使用位运算，而不是%
+			// h := integerHash(uint64(key)) % t.ArraySize
+			h := integerHash(uint64(key)) & (t.ArraySize - 1)
 
 			for {
+				// 找到对应的 Cell
 				cell = t.CellAt(h)
 				if cell.UnHashedKey == key {
 					// already exists
 					return cell, false
 				}
 				if cell.UnHashedKey == 0 {
+					// 大于总量的3/4，自动扩容
 					if (t.Population+1)*4 >= t.ArraySize*3 {
 						vprintf("detected (t.Population+1)*4 >= t.ArraySize*3, i.e. %v >= %v, calling Repop with double the size\n", (t.Population+1)*4, t.ArraySize*3)
 						t.Repopulate(t.ArraySize * 2)
@@ -456,16 +460,19 @@ func (t *HashTable) Repopulate(desiredSize uint64) {
 
 	// Iterate through old table t, copy into new table s.
 	var c *Cell
-
+	// 将旧数据复制到新容器
 	for i := uint64(0); i < t.ArraySize; i++ {
+		// 找到旧的cell
 		c = t.CellAt(i)
 		vprintf("\n in oldCell copy loop, at i = %v, and c = '%#v'\n", i, c)
 		if c.UnHashedKey != 0 {
 			// Insert this element into new table
+			// 将旧的cell的key插入到新的cell，并返回因此产生的新的cell
 			cell, ok := s.Insert(c.UnHashedKey)
 			if !ok {
 				panic(fmt.Sprintf("key '%v' already exists in fresh table s: should be impossible", c.UnHashedKey))
 			}
+			// 将旧cell的所有内容复制到产生的新cell
 			*cell = *c
 		}
 	}

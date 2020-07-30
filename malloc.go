@@ -72,6 +72,11 @@ func (mm *MmapMalloc) Free() {
 //
 // The returned value's .Mem member holds a []byte pointing to the returned memory (as does .MMap, for use in other gommap calls).
 //
+//Malloc（）创建一个新的内存区域，该内存区域由OS通过mmap（）调用直接提供，因此不会被Go垃圾收集器扫描。
+//如果path不为空，则我们将内存映射到给定的路径。否则，它就像对malloc（）的调用：Go Garbage Collector之外的匿名内存分配。
+//如果numBytes为-1，则我们从路径文件的大小中获取大小。否则，文件将被扩展或截断为numBytes。
+//如果numBytes为-1，则必须提供路径；否则，必须为0。否则，我们将无法知道要分配的大小，并且该函数将出现恐慌。
+//返回值的.Mem成员持有一个[] byte指向返回的内存（与.MMap一样，用于其他gommap调用中）。
 func Malloc(numBytes int64, path string) *MmapMalloc {
 
 	mm := MmapMalloc{
